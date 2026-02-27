@@ -4,65 +4,132 @@
   <meta charset="UTF-8"/>
   <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
   <title>Sorceress — AI H</title>
-  <script type="module" src="https://ajax.googleapis.com/ajax/libs/model-viewer/3.4.0/model-viewer.min.js"></script>
   <style>
     * { margin:0; padding:0; box-sizing:border-box; }
-    body { background:#0d0d1a; height:100vh; display:flex; flex-direction:column; align-items:center; font-family:'Segoe UI',sans-serif; }
-
-    #header {
-      padding: 20px 0 10px;
-      text-align:center;
-      z-index:10;
+    body { background:#0d0d1a; overflow:hidden; font-family:'Segoe UI',sans-serif; }
+    canvas { display:block; }
+    #title {
+      position:fixed; top:24px; left:50%; transform:translateX(-50%);
+      text-align:center; pointer-events:none; z-index:10;
     }
-    #header h1 {
-      font-size: clamp(1.4rem,5vw,2.4rem);
-      font-weight:800; letter-spacing:5px;
-      background: linear-gradient(135deg,#a855f7,#ec4899,#a855f7);
+    #title h1 {
+      font-size:clamp(1.3rem,4vw,2.2rem); font-weight:800; letter-spacing:4px;
+      background:linear-gradient(135deg,#a855f7,#ec4899,#a855f7);
       -webkit-background-clip:text; -webkit-text-fill-color:transparent;
       background-clip:text;
-      filter: drop-shadow(0 0 20px rgba(168,85,247,0.7));
+      filter:drop-shadow(0 0 18px rgba(168,85,247,0.6));
     }
-    #header p { color:rgba(168,85,247,0.45); font-size:0.78rem; letter-spacing:3px; margin-top:5px; }
-
-    model-viewer {
-      width: 100%;
-      flex: 1;
-      background-color: transparent;
-      --poster-color: transparent;
-    }
-
+    #title p { color:rgba(168,85,247,0.5); font-size:0.8rem; letter-spacing:3px; margin-top:4px; }
     #hint {
-      padding: 10px 0 16px;
-      color:rgba(168,85,247,0.3);
-      font-size:0.72rem;
-      letter-spacing:2px;
+      position:fixed; bottom:22px; left:50%; transform:translateX(-50%);
+      color:rgba(168,85,247,0.3); font-size:0.72rem; letter-spacing:1px; pointer-events:none;
     }
   </style>
 </head>
 <body>
 
-<div id="header">
+<div id="title">
   <h1>✦ SORCERESS ✦</h1>
   <p>AI H — Interactive 3D</p>
 </div>
+<div id="hint">drag to rotate • scroll to zoom</div>
 
-<model-viewer
-  src="./sorceress.glb"
-  alt="Sorceress 3D Character"
-  auto-rotate
-  auto-rotate-delay="0"
-  rotation-per-second="30deg"
-  camera-controls
-  touch-action="pan-y"
-  shadow-intensity="1"
-  shadow-softness="1"
-  exposure="1.2"
-  environment-image="neutral"
-  loading="eager"
->
-</model-viewer>
+<script type="module">
+import * as THREE from './three.module.js';
+import { OrbitControls } from './OrbitControls.js';
+import { GLTFLoader } from './GLTFLoader.js';
 
-<div id="hint">drag to rotate • pinch to zoom</div>
+// Renderer
+const renderer = new THREE.WebGLRenderer({ antialias: true });
+renderer.setPixelRatio(Math.min(devicePixelRatio, 2));
+renderer.setSize(innerWidth, innerHeight);
+renderer.setClearColor(0x0d0d1a, 1);
+renderer.shadowMap.enabled = true;
+renderer.toneMapping = THREE.ACESFilmicToneMapping;
+renderer.toneMappingExposure = 1.1;
+document.body.appendChild(renderer.domElement);
 
+// Scene + Camera
+const scene = new THREE.Scene();
+scene.fog = new THREE.FogExp2(0x0d0d1a, 0.025);
+
+const camera = new THREE.PerspectiveCamera(50, innerWidth/innerHeight, 0.01, 100);
+camera.position.set(0, 1.2, 4);
+
+// Controls
+const controls = new OrbitControls(camera, renderer.domElement);
+controls.enableDamping = true;
+controls.dampingFactor = 0.05;
+controls.autoRotate = true;
+controls.autoRotateSpeed = 1.5;
+controls.target.set(0, 0.8, 0);
+controls.minDistance = 1;
+controls.maxDistance = 8;
+controls.update();
+
+// Lights
+scene.add(new THREE.AmbientLight(0x221133, 3));
+
+const keyLight = new THREE.DirectionalLight(0xcc88ff, 4);
+keyLight.position.set(2, 5, 3);
+scene.add(keyLight);
+
+const fillLight = new THREE.PointLight(0xff44aa, 6, 12);
+fillLight.position.set(-3, 2, 2);
+scene.add(fillLight);
+
+const rimLight = new THREE.PointLight(0x4488ff, 4, 10);
+rimLight.position.set(0, 3, -4);
+scene.add(rimLight);
+
+// Ground ring
+const ringGeo = new THREE.TorusGeometry(1.2, 0.02, 8, 80);
+const ring = new THREE.Mesh(ringGeo, new THREE.MeshBasicMaterial({ color:0xa855f7, transparent:true, opacity:0.6 }));
+ring.rotation.x = -Math.PI/2;
+ring.position.y = 0.01;
+scene.add(ring);
+
+// Particles
+const pPos = new Float32Array(300*3);
+for(let i=0;i<300*3;i++) pPos[i]=(Math.random()-0.5)*12;
+const pGeo = new THREE.BufferGeometry();
+pGeo.setAttribute('position', new THREE.BufferAttribute(pPos,3));
+scene.add(new THREE.Points(pGeo, new THREE.PointsMaterial({color:0xcc88ff,size:0.04,transparent:true,opacity:0.5})));
+
+// Load model
+const loader = new GLTFLoader();
+loader.load('./sorceress.glb', (gltf) => {
+  const model = gltf.scene;
+  const box = new THREE.Box3().setFromObject(model);
+  const size = box.getSize(new THREE.Vector3());
+  const center = box.getCenter(new THREE.Vector3());
+  const scale = 2.2 / Math.max(size.x, size.y, size.z);
+  model.scale.setScalar(scale);
+  model.position.sub(center.multiplyScalar(scale));
+  model.position.y += size.y * scale * 0.5;
+  model.traverse(n => { if(n.isMesh) n.castShadow = true; });
+  scene.add(model);
+});
+
+// Resize
+window.addEventListener('resize', () => {
+  camera.aspect = innerWidth/innerHeight;
+  camera.updateProjectionMatrix();
+  renderer.setSize(innerWidth, innerHeight);
+});
+
+// Animate
+let t = 0;
+function animate() {
+  requestAnimationFrame(animate);
+  t += 0.01;
+  fillLight.position.x = Math.sin(t*0.7)*3;
+  fillLight.position.z = Math.cos(t*0.7)*3;
+  ring.material.opacity = 0.4 + 0.3*Math.sin(t*2);
+  controls.update();
+  renderer.render(scene, camera);
+}
+animate();
+</script>
 </body>
 </html>

@@ -1,0 +1,189 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Sorceress — AI H</title>
+  <style>
+    * { margin:0; padding:0; box-sizing:border-box; }
+    body { background:#0d0d1a; overflow:hidden; font-family:'Segoe UI',sans-serif; }
+    canvas { display:block; }
+    #title {
+      position:fixed; top:24px; left:50%; transform:translateX(-50%);
+      text-align:center; pointer-events:none; z-index:10;
+    }
+    #title h1 {
+      font-size:clamp(1.3rem,4vw,2.2rem); font-weight:800; letter-spacing:4px;
+      background:linear-gradient(135deg,#a855f7,#ec4899,#a855f7);
+      -webkit-background-clip:text; -webkit-text-fill-color:transparent;
+      background-clip:text;
+      filter:drop-shadow(0 0 18px rgba(168,85,247,0.6));
+    }
+    #title p { color:rgba(168,85,247,0.5); font-size:0.8rem; letter-spacing:3px; margin-top:4px; }
+    #hint {
+      position:fixed; bottom:22px; left:50%; transform:translateX(-50%);
+      color:rgba(168,85,247,0.3); font-size:0.72rem; letter-spacing:1px; pointer-events:none;
+    }
+    #loading {
+      position:fixed; inset:0; display:flex; align-items:center; justify-content:center;
+      background:#0d0d1a; z-index:100; flex-direction:column; gap:16px;
+    }
+    #loading p { color:rgba(168,85,247,0.7); letter-spacing:3px; font-size:0.85rem; }
+    .bar { width:200px; height:3px; background:rgba(168,85,247,0.2); border-radius:2px; overflow:hidden; }
+    .bar-fill { height:100%; background:linear-gradient(90deg,#a855f7,#ec4899); width:0%; transition:width 0.3s; }
+  </style>
+</head>
+<body>
+
+<div id="loading">
+  <p>LOADING SORCERESS...</p>
+  <div class="bar"><div class="bar-fill" id="bar"></div></div>
+</div>
+
+<div id="title">
+  <h1>✦ SORCERESS ✦</h1>
+  <p>AI H — Interactive 3D</p>
+</div>
+<div id="hint">drag to rotate • scroll to zoom</div>
+
+<script type="importmap">
+{
+  "imports": {
+    "three": "./three.module.js",
+    "three/addons/controls/OrbitControls.js": "./OrbitControls.js",
+    "three/addons/loaders/GLTFLoader.js": "./GLTFLoader.js"
+  }
+}
+</script>
+
+<script type="module">
+import * as THREE from 'three';
+import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
+import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
+
+const renderer = new THREE.WebGLRenderer({ antialias:true });
+renderer.setPixelRatio(Math.min(devicePixelRatio,2));
+renderer.setSize(innerWidth, innerHeight);
+renderer.setClearColor(0x0d0d1a, 1);
+renderer.shadowMap.enabled = true;
+renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+renderer.toneMapping = THREE.ACESFilmicToneMapping;
+renderer.toneMappingExposure = 1.1;
+document.body.appendChild(renderer.domElement);
+
+const scene = new THREE.Scene();
+scene.fog = new THREE.FogExp2(0x0d0d1a, 0.02);
+
+const camera = new THREE.PerspectiveCamera(50, innerWidth/innerHeight, 0.01, 100);
+camera.position.set(0, 1.2, 4);
+
+const controls = new OrbitControls(camera, renderer.domElement);
+controls.enableDamping = true;
+controls.dampingFactor = 0.05;
+controls.autoRotate = true;
+controls.autoRotateSpeed = 1.5;
+controls.target.set(0, 0.8, 0);
+controls.minDistance = 1;
+controls.maxDistance = 8;
+controls.update();
+
+// Lights
+scene.add(new THREE.AmbientLight(0x221133, 3));
+
+const keyLight = new THREE.DirectionalLight(0xcc88ff, 4);
+keyLight.position.set(2, 5, 3);
+keyLight.castShadow = true;
+scene.add(keyLight);
+
+const fillLight = new THREE.PointLight(0xff44aa, 6, 12);
+fillLight.position.set(-3, 2, 2);
+scene.add(fillLight);
+
+const rimLight = new THREE.PointLight(0x4488ff, 4, 10);
+rimLight.position.set(0, 3, -4);
+scene.add(rimLight);
+
+const groundLight = new THREE.PointLight(0xa855f7, 3, 8);
+groundLight.position.set(0, -1, 0);
+scene.add(groundLight);
+
+// Ground
+const groundGeo = new THREE.CircleGeometry(3, 64);
+const groundMat = new THREE.MeshStandardMaterial({
+  color:0x110022, metalness:0.8, roughness:0.3,
+  transparent:true, opacity:0.9,
+});
+const ground = new THREE.Mesh(groundGeo, groundMat);
+ground.rotation.x = -Math.PI/2;
+ground.receiveShadow = true;
+scene.add(ground);
+
+// Glow ring on ground
+const ringGeo = new THREE.TorusGeometry(1.2, 0.02, 8, 80);
+const ringMat = new THREE.MeshBasicMaterial({ color:0xa855f7, transparent:true, opacity:0.6 });
+const ring = new THREE.Mesh(ringGeo, ringMat);
+ring.rotation.x = -Math.PI/2;
+ring.position.y = 0.01;
+scene.add(ring);
+
+// Particles
+const pCount = 300;
+const pPos = new Float32Array(pCount*3);
+for(let i=0;i<pCount*3;i++) pPos[i]=(Math.random()-0.5)*12;
+const pGeo = new THREE.BufferGeometry();
+pGeo.setAttribute('position', new THREE.BufferAttribute(pPos,3));
+scene.add(new THREE.Points(pGeo, new THREE.PointsMaterial({color:0xcc88ff,size:0.04,transparent:true,opacity:0.5})));
+
+// Load model
+const loader = new GLTFLoader();
+const bar = document.getElementById('bar');
+loader.load('./sorceress.glb',
+  (gltf) => {
+    const model = gltf.scene;
+
+    // Auto center and scale
+    const box = new THREE.Box3().setFromObject(model);
+    const size = box.getSize(new THREE.Vector3());
+    const center = box.getCenter(new THREE.Vector3());
+    const maxDim = Math.max(size.x, size.y, size.z);
+    const scale = 2.2 / maxDim;
+    model.scale.setScalar(scale);
+    model.position.sub(center.multiplyScalar(scale));
+    model.position.y += size.y * scale * 0.5;
+
+    model.traverse(n => {
+      if(n.isMesh) {
+        n.castShadow = true;
+        n.receiveShadow = true;
+      }
+    });
+
+    scene.add(model);
+    document.getElementById('loading').style.display = 'none';
+  },
+  (xhr) => {
+    const pct = (xhr.loaded/xhr.total*100);
+    bar.style.width = pct + '%';
+  }
+);
+
+window.addEventListener('resize', () => {
+  camera.aspect = innerWidth/innerHeight;
+  camera.updateProjectionMatrix();
+  renderer.setSize(innerWidth, innerHeight);
+});
+
+let t = 0;
+function animate() {
+  requestAnimationFrame(animate);
+  t += 0.01;
+  fillLight.position.x = Math.sin(t*0.7)*3;
+  fillLight.position.z = Math.cos(t*0.7)*3;
+  ring.material.opacity = 0.4 + 0.3*Math.sin(t*2);
+  controls.update();
+  renderer.render(scene, camera);
+}
+animate();
+</script>
+</body>
+</html>
